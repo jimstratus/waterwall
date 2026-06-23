@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# waterwall-tui — create-or-attach a persistent tmux session running the
+# Waterwall dashboard TUI. Idempotent: run it as many times as you like; it
+# attaches to the existing session instead of spawning duplicates.
+#
+# The TUI is a read-only renderer that polls the admin loopback
+# (http://127.0.0.1:8889/admin/state). It must run on the host where the
+# proxy's admin server is bound — i.e. the proxy box itself (prod-host in prod).
+#
+# Usage:
+#   deploy/waterwall-tui            # create-or-attach session "waterwall"
+#   deploy/waterwall-tui -s NAME    # use a different session name
+#   deploy/waterwall-tui --kill     # stop the session
+#   deploy/waterwall-tui --status   # is the session running?
+#
+# Detach (leave it running): Ctrl-b d.  Quit the TUI: q (the window respawns
+# it after 2s so the dashboard is always-on; use --kill to stop for real).
+set -euo pipefail
+
+SESSION="waterwall"
+WINDOW="dashboard"
+
+# Resolve the waterwall entrypoint: prefer the repo venv, fall back to PATH,
+# then to `python -m waterwall.tui`. The repo uses a src/ layout, so the
+# module fallbacks only resolve without `pip install -e .` when
+# $REPO_ROOT/src is on PYTHONPATH — export it for those two paths.
+# q() single-quotes a string so spaces (and any other metachar) survive when
+# $TUI_CMD is later evaluated by the shell inside the tmux respawn loop. Handles
+# a literal single quote via the standard '\'' escape, so it's safe for any
+# filesystem path (e.g. a checkout under "~/o'brien/repo").
+q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -x "$REPO_ROOT/.venv/bin/waterwall" ]; then
+    TUI_CMD="$(q "$REPO_ROOT/.venv/bin/waterwall") dashboard"
+elif ww_path="$(command -v waterwall 2>/dev/null)" && [ -x "$ww_path" ]; then
+    # Resolve to a real executable path (not a shell function/alias, which a
+    # detached tmux pane wouldn't inherit) and quote it.
+    TUI_CMD="$(q "$ww_path") dashboard"
+elif [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+    TUI_CMD="PYTHONPATH=$(q "$REPO_ROOT/src") $(q "$REPO_ROOT/.venv/bin/python") -m waterwall.tui"
+else
+    TUI_CMD="PYTHONPATH=$(q "$REPO_ROOT/src") python3 -m waterwall.tui"
+fi
+
+# Respawn loop: an accidental `q` or a transient error relaunches the TUI
+# rather than leaving a dead pane. --kill is the intended way to stop it.
+RUN="while true; do $TUI_CMD; sleep 2; done"
+
+# Print the contiguous comment header (from line 2 until the first
+# non-comment line), stripping the leading "# ". Robust to edits that shift
+# line numbers — a fixed 2,20 range leaked `set -euo pipefail` / `SESSION=`.
+usage() {
+    awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"
+}
+
+ACTION="attach"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -s|--session)
+            if [ $# -lt 2 ] || [ -z "$2" ]; then
+                echo "error: $1 requires a session name" >&2; exit 2
+            fi
+            SESSION="$2"; shift 2 ;;
+        --kill)       ACTION="kill"; shift ;;
+        --status)     ACTION="status"; shift ;;
+        -h|--help)    usage; exit 0 ;;
+        *) echo "unknown arg: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+command -v tmux >/dev/null 2>&1 || { echo "error: tmux is not installed" >&2; exit 1; }
+
+session_exists() { tmux has-session -t "$SESSION" 2>/dev/null; }
+
+case "$ACTION" in
+    status)
+        if session_exists; then echo "running: tmux session '$SESSION'"; exit 0
+        else echo "not running"; exit 1; fi
+        ;;
+    kill)
+        if session_exists; then tmux kill-session -t "$SESSION"; echo "killed session '$SESSION'"
+        else echo "no session '$SESSION'"; fi
+        exit 0
+        ;;
+esac
+
+# Create the session detached if it isn't already up. Tolerate a concurrent
+# invocation winning the race between the check and the create: if new-session
+# fails BUT the session now exists, another process created it — proceed to
+# attach. Re-raise only if it failed for some other reason.
+if ! session_exists; then
+    # Capture stderr rather than discarding it: a failure here is only benign
+    # when a concurrent invocation already created the session (the race). For
+    # any other failure, surface tmux's actual error so it's diagnosable.
+    if ! err="$(tmux new-session -d -s "$SESSION" -n "$WINDOW" "$RUN" 2>&1)"; then
+        if ! session_exists; then
+            echo "error: failed to create tmux session '$SESSION': $err" >&2
+            exit 1
+        fi
+    fi
+fi
+
+# Attach (from a normal shell) or switch (if we're already inside tmux —
+# `tmux attach` refuses to nest).
+if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "$SESSION"
+else
+    tmux attach-session -t "$SESSION"
+fi

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WATERWALL — reversible egress firewall</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page">
+    <div class="frame" id="frame">
+
+      <pre class="logo" aria-label="WATERWALL">██╗    ██╗ █████╗ ████████╗███████╗██████╗ ██╗    ██╗ █████╗ ██╗     ██╗
+██║    ██║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║    ██║██╔══██╗██║     ██║
+██║ █╗ ██║███████║   ██║   █████╗  ██████╔╝██║ █╗ ██║███████║██║     ██║
+██║███╗██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║███╗██║██╔══██║██║     ██║
+╚███╔███╔╝██║  ██║   ██║   ███████╗██║  ██║╚███╔███╔╝██║  ██║███████╗███████╗
+ ╚══╝╚══╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚══════╝</pre>
+
+      <div class="header-strip">
+        <span class="tagline">▼  reversible egress firewall  ▼</span>
+        <span class="hostname" id="hostname">⌂ —</span>
+        <span class="status-chip status-good" id="status-chip">●UP  uptime —</span>
+      </div>
+
+      <div class="offline-banner" id="offline-banner"></div>
+
+      <div class="grid">
+        <section class="panel" data-panel="activity" id="p-activity">
+          <header class="panel-title">─ LIVE ACTIVITY (tail) ─</header>
+          <div class="panel-body panel-body-scroll" id="body-activity"></div>
+          <button class="tail-pill" id="tail-pill" type="button" hidden>▼ <span id="tail-pill-count">0</span> new</button>
+        </section>
+
+        <section class="panel" data-panel="counters" id="p-counters">
+          <header class="panel-title">─ COUNTERS (5m) ─</header>
+          <div class="panel-body" id="body-counters"></div>
+        </section>
+
+        <section class="panel" data-panel="map-patterns" id="p-map-patterns">
+          <header class="panel-title">─ MAP / PATTERNS ─</header>
+          <div class="panel-body" id="body-map-patterns"></div>
+        </section>
+
+        <section class="panel" data-panel="killswitch" id="p-killswitch">
+          <header class="panel-title">─ KILL SWITCH ─</header>
+          <div class="panel-body" id="body-killswitch"></div>
+        </section>
+
+        <section class="panel" data-panel="chain" id="p-chain">
+          <header class="panel-title">─ CHAIN / AUDIT ─</header>
+          <div class="panel-body" id="body-chain"></div>
+        </section>
+
+        <section class="panel" data-panel="sessions" id="p-sessions">
+          <header class="panel-title">─ ACTIVE SESSIONS ─</header>
+          <div class="panel-body" id="body-sessions"></div>
+        </section>
+      </div>
+
+      <footer class="control-strip">
+        <span class="control-label">endpoint</span>
+        <input type="text" id="endpoint-input" class="control-input" spellcheck="false" autocomplete="off">
+        <span class="control-sep">·</span>
+        <label class="control-check">
+          <input type="checkbox" id="use-mock">
+          <span>use mock</span>
+        </label>
+        <span class="control-sep">·</span>
+        <span class="control-label">view</span>
+        <button type="button" class="view-btn is-active" data-view="healthy">healthy</button>
+        <button type="button" class="view-btn" data-view="armed">armed</button>
+        <button type="button" class="view-btn" data-view="offline">offline</button>
+        <span class="control-sep">·</span>
+        <span class="poll-indicator" id="poll-indicator" title="last poll status">
+          <span class="poll-dot" id="poll-dot"></span>
+          <span id="poll-text">polling…</span>
+        </span>
+      </footer>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

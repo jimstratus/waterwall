@@ -1,0 +1,84 @@
+# deploy/caddy/cloudflared.yml.example
+#
+# Cloudflare Tunnel config for the waterwall status page.
+#
+# Public URL:   https://waterwall.example.com/waterwall/
+# Path:          /waterwall/*  (the admin is built with mount_prefix)
+# Access:        Cloudflare Access policy on /waterwall* (configured in
+#                the Cloudflare Zero Trust dashboard, not here) — anyone
+#                reaching the public URL must authenticate.
+#
+# Copy to /etc/cloudflared/config.yml (or wherever your platform expects
+# it) and fill in the placeholders. Run with:
+#
+#   cloudflared tunnel --config /etc/cloudflared/config.yml run
+#
+# or as a systemd unit (cloudflared.service ships with most installs).
+#
+# cloudflared opens an outbound QUIC/HTTP2 connection to Cloudflare's
+# nearest PoP. The local hop lands on Caddy at 127.0.0.1:8443, which
+# serves the prefixed path through to the loopback admin. The admin
+# does its own path routing via `mount_prefix="/waterwall"`.
+#
+# Public hostname records (CNAME) are created in Cloudflare DNS via:
+#
+#   cloudflared tunnel route dns <tunnel-name> waterwall.example.com
+#
+# then traffic for waterwall.example.com routes through this tunnel.
+
+tunnel: waterwall-status           # <-- the name you gave the tunnel
+credentials-file: /etc/cloudflared/waterwall-status.json   # <-- service-account JSON
+
+# WARP-to-WARP mesh: when set, WARP clients (the Cloudflare One client
+# on a laptop or phone) can reach the tunnel directly without going
+# through public DNS. Combine with a private network in Cloudflare
+# Zero Trust to give the tunnel an internal RFC1918 address.
+# Comment this block out if you only want public hostname ingress.
+warp-routing:
+  enabled: true
+
+ingress:
+  # All paths on waterwall.example.com route to the loopback Caddy
+  # listener, which matches /waterwall/* and proxies to the admin.
+  # The admin's mount_prefix=/waterwall keeps the page + JSON under
+  # the prefix and leaves the rest of the URL namespace free.
+  - hostname: waterwall.example.com
+    service: http://127.0.0.1:8443
+    originRequest:
+      noTLSVerify: false
+      connectTimeout: 5s
+      tlsTimeout: 5s
+      keepAliveConnections: 4
+      keepAliveTimeout: 90s
+
+  # Required catch-all. Anything not matched above gets a 404 from
+  # cloudflared itself, not from the upstream.
+  - service: http_status:404
+
+# ---------------------------------------------------------------- Access
+# Configure the access policy in the Cloudflare Zero Trust dashboard:
+#
+#   Zero Trust → Access → Applications → Add an application →
+#     Self-hosted
+#       Name:   waterwall
+#       Domain: waterwall.example.com
+#       Path:   /waterwall*
+#     Identity providers
+#       Add the IdPs you want to allow (email OTP, GitHub OAuth,
+#       Google Workspace SSO, etc.). For a single-operator homelab
+#       the typical setup is "one-time PIN sent to your email" or
+#       a GitHub OAuth tied to a specific user.
+#     Policies
+#       Name:  allow-operator
+#       Action: Allow
+#       Include: your email / your GitHub login / your SSO group
+#
+# After saving, the public URL https://waterwall.example.com/waterwall/
+# prompts for authentication. Anyone with the right IdP login gets
+# the page; everyone else gets Cloudflare's 403 page.
+
+# Recommended observability knobs. cloudflared logs JSON to stderr by
+# default; tune the level if your log volume gets noisy.
+loglevel: info
+# logfile: /var/log/cloudflared.log   # uncomment to log to file
+# transport-loglevel: warn            # uncomment to silence QUIC noise

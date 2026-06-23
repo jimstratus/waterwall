@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# deploy/wrappers/waterwall-launch
+# Pre-launch hook wrapper for AI agents that lack native hook support.
+# Spec §4.4. Usage: `waterwall-launch <agent-binary> [args...]`
+#
+# Operator typically symlinks this as:
+#   ln -sf waterwall-launch /usr/local/bin/waterwall-hermes
+#   ln -sf waterwall-launch /usr/local/bin/waterwall-codex
+# …and updates whatever launches the agent (systemd unit, shell alias,
+# cron) to invoke the wrapper instead of the raw binary.
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "usage: waterwall-launch <agent-binary> [args...]" >&2
+    exit 2
+fi
+
+TARGET="$1"
+shift
+
+# Run the pre-launch hook; capture its stdout (JSON), let its stderr (the
+# human-readable BLOCK line) pass through. The hook's EXIT CODE is the
+# enforcement contract — argus issue #17: SessionStart JSON has no "decision"
+# field; the JSON carries only an informational additionalContext message.
+# `|| HOOK_EXIT=$?` guards the command substitution against errexit so a
+# nonzero hook (or a missing waterwall CLI, exit 127) reaches the gate below.
+HOOK_EXIT=0
+HOOK_OUTPUT=$(waterwall pre-launch-hook) || HOOK_EXIT=$?
+
+if [ "$HOOK_EXIT" -ne 0 ]; then
+    # Best-effort reason extraction from hookSpecificOutput.additionalContext
+    # for a friendlier message — purely cosmetic; the gate is the exit code.
+    # Every branch ends in `|| true` so a no-match grep / parse failure under
+    # `set -e` cannot abort before we print the refusal.
+    if command -v jq >/dev/null 2>&1; then
+        REASON=$(printf '%s' "$HOOK_OUTPUT" | jq -r '.hookSpecificOutput.additionalContext? // empty' 2>/dev/null || true)
+    else
+        REASON=$(printf '%s' "$HOOK_OUTPUT" | grep -oE '"additionalContext"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*:[[:space:]]*"(.*)"$/\1/' || true)
+    fi
+    echo "waterwall-launch: blocked by pre-launch-hook, exit ${HOOK_EXIT} (${REASON:-proxy down, kill switch armed, or waterwall CLI missing})" >&2
+    exit 1
+fi
+
+# Hook exit 0 → healthy: exec the real target with all forwarded args
+exec "$TARGET" "$@"

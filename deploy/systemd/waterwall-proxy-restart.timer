@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly preventive restart of waterwall-proxy (mitmproxy #4456)
+
+[Timer]
+OnCalendar=Sun 03:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=waterwall-proxy-restart.service
+
+[Install]
+WantedBy=timers.target

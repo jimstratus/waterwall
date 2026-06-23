@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart waterwall-proxy
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart waterwall-proxy.service

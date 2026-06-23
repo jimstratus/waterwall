@@ -1,0 +1,6 @@
+# {{ config.title }} — {{ config.tagline }}
+# {{ config.repo_url }}
+
+{% for p in pages -%}
+- [{{ p.title }}]({{ p.page }}.md): {{ p.summary }}
+{% endfor %}

@@ -1,0 +1,113 @@
+# deploy/caddy/Caddyfile
+#
+# Reverse-proxy in front of the waterwall admin server (127.0.0.1:8889).
+# The waterwall admin stays loopback-only and untouched. Caddy is the
+# public face for whichever access path the operator runs.
+#
+# Public URL: https://waterwall.example.com/waterwall/
+# Path:       /waterwall/*  (page + JSON; the rest of the URL namespace
+#                            is free for other apps on the same host)
+#
+# The waterwall admin is built with `mount_prefix="/waterwall"` only
+# when the operator exports WATERWALL_MOUNT_PREFIX=/waterwall before
+# starting mitmdump. With the env var unset, the admin serves the
+# API at /admin/state (legacy root-mount) and these Caddyfile rules
+# will forward to a 404. Either:
+#   (a) export WATERWALL_MOUNT_PREFIX=/waterwall in the unit/env that
+#       starts mitmdump, OR
+#   (b) change the @waterwall matchers below to plain "/" if you
+#       want the page exposed at the URL root instead.
+#
+# Three access paths, all converging on this Caddyfile:
+#
+#   1. Tailscale      tailscaled terminates TLS, forwards to the
+#                     loopback Caddy listener (http://127.0.0.1:8443).
+#                     See tailscale.md for the one-liner.
+#
+#   2. Cloudflare     cloudflared connects out to Cloudflare's edge,
+#                     Cloudflare Access policy on /waterwall* gates
+#                     the public path, the local hop lands on the
+#                     loopback Caddy listener. See cloudflared.yml.example.
+#
+#   3. Wireguard      Caddy listens directly on the wg interface IP at
+#                     :443, serves HTTPS for waterwall.example.com to peers.
+#                     Caddy's internal CA signs the cert; export and
+#                     install the CA on peer devices.
+#
+# The waterwall admin's loopback binding is unchanged. None of these
+# configs widen it — the reverse proxy is the only thing exposed.
+#
+# Everything that is NOT /waterwall/* gets a 404 from Caddy. The
+# wg listener and the loopback listener each enforce this. The page
+# and JSON live at the prefixed path; the rest of waterwall.example.com
+# is a no-op surface.
+
+# -------------------------------------------------------------- 1. loopback
+# HTTP only — used by cloudflared tunnel and `tailscale serve`. Caddy
+# terminates the local connection and proxies to the admin on
+# loopback. TLS is handled at the upstream tunnel; the local hop is
+# plain HTTP because both ends are loopback.
+http://127.0.0.1:8443 {
+	@waterwall path /waterwall /waterwall/*
+	handle @waterwall {
+		reverse_proxy 127.0.0.1:8889
+	}
+
+	# --- mitmweb (optional) -----------------------------------------
+	# Same block as on the wg listener below; duplicated here so the
+	# Tailscale / Cloudflare paths can reach mitmweb too. See APPS.md.
+	# @mitmweb path /mitmweb /mitmweb/*
+	# handle @mitmweb {
+	# 	uri strip_prefix /mitmweb
+	# 	reverse_proxy 127.0.0.1:8081
+	# }
+
+	# Anything else on the loopback listener is 404 — the admin's
+	# other endpoints (healthz, root, etc.) are not exposed here.
+	respond "not found" 404
+}
+
+# ----------------------------------------------------- 2. wireguard
+# HTTPS on the wg interface IP. Caddy terminates TLS for
+# waterwall.example.com and proxies /waterwall/* to the admin. Other paths
+# get 404 so the wg listener can't be used to probe the rest of the
+# host's URL namespace.
+#
+# TLS: Caddy's internal CA. Caddy generates a self-signed cert and
+# the CA at first start. The operator exports the CA cert from
+# /var/lib/caddy/pki/authorities/local/root.crt and installs it on
+# peer devices (or accepts the browser warning once per device). For
+# a public cert instead, replace `tls internal` with `tls <email>`
+# (Let's Encrypt via ACME DNS-01, since waterwall.example.com needs DNS
+# validation) or supply your own cert + key paths.
+https://waterwall.example.com {
+	bind 10.0.0.1 # <-- set to your wg interface IP, e.g. 10.0.0.1
+
+	tls internal
+
+	@waterwall path /waterwall /waterwall/*
+	handle @waterwall {
+		reverse_proxy 127.0.0.1:8889
+	}
+
+	# --- mitmweb (optional) -----------------------------------------
+	# Uncomment to also expose the mitmproxy web UI at
+	# https://waterwall.example.com/mitmweb/. The mitmweb JS uses relative
+	# URLs internally so `uri strip_prefix` works cleanly. See
+	# APPS.md for the full feasibility analysis and gotchas (auth,
+	# CSRF, WebSocket).
+	# @mitmweb path /mitmweb /mitmweb/*
+	# handle @mitmweb {
+	# 	uri strip_prefix /mitmweb
+	# 	reverse_proxy 127.0.0.1:8081
+	# }
+
+	respond "not found" 404
+}
+
+# -------------------------------------------------- 3. tailscale (docs)
+# Tailscale is configured out of band via `tailscale serve`, not here.
+# See deploy/caddy/tailscale.md for the one-liner that points
+# https://<host>.<tailnet>.ts.net/waterwall/ at http://127.0.0.1:8443/waterwall/.
+# Caddy's loopback listener proxies the path through unchanged; the
+# admin's mount_prefix matches the public path.

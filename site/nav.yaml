@@ -1,0 +1,21 @@
+- title: "Home"
+  page: "index"
+- title: "Get Started"
+  children:
+    - { title: "Onboarding & Setup", page: "onboarding" }
+    - { title: "Deploy", page: "deploy" }
+    - { title: "Runbook", page: "runbook" }
+- title: "Concepts"
+  children:
+    - { title: "Architecture", page: "architecture" }
+    - { title: "Redaction Model", page: "redaction" }
+    - { title: "Threat Model", page: "threat-model" }
+- title: "Reference"
+  children:
+    - { title: "CLI", page: "cli" }
+    - { title: "TUI Dashboard", page: "tui" }
+- title: "Project"
+  children:
+    - { title: "Contributing", page: "contributing" }
+    - { title: "Disclaimer", page: "disclaimer" }
+    - { title: "License", page: "license" }

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }} · {{ config.title }}</title>
+  <link rel="icon" href="static/favicon.svg">
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+<body class="scanlines">
+  <header class="masthead">
+    <button id="nav-toggle" aria-label="Toggle navigation">☰</button>
+    <a class="brand" href="index.html">{{ config.title }}</a>
+    <span class="tagline">{{ config.tagline }}</span>
+    <span class="spacer"></span>
+    <input id="search-box" type="search" placeholder="search…" aria-label="Search docs" autocomplete="off">
+    <a class="ext" href="{{ config.issues_url }}">file an issue</a>
+    <a class="ext" href="{{ config.repo_url }}">repo</a>
+    <span class="version">{{ config.version }}</span>
+  </header>
+  <div id="search-results" hidden></div>
+  <div class="layout">
+    <nav id="sidebar" class="sidebar">{{ nav_html | safe }}</nav>
+    <main class="content">
+      <div class="page-actions">
+        <a class="md-link" href="{{ page }}.md" title="Clean Markdown source for LLMs">📄 View as Markdown (for AI)</a>
+      </div>
+      <article class="markdown-body">{{ content | safe }}</article>
+      <footer class="page-footer">
+        <a href="license.html">MIT License</a> · <a href="disclaimer.html">Disclaimer</a>
+        · <a href="{{ config.issues_url }}">Report an issue</a> · built {{ config.version }}
+      </footer>
+    </main>
+  </div>
+  <script src="static/mermaid.min.js"></script>
+  <script src="static/lunr.min.js"></script>
+  <script src="static/app.js"></script>
+</body>
+</html>

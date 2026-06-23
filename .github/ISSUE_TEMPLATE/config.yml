@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation (KB)
+    url: https://jimstratus.github.io/waterwall/
+    about: Setup, architecture, runbook, and CLI reference.
+  - name: Security note
+    about: Waterwall is a single-operator homelab tool; please scrub real secrets from any report.
+    url: https://github.com/jimstratus/waterwall/blob/master/docs/threat-model.md

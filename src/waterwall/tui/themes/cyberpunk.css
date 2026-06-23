@@ -1,0 +1,90 @@
+/* src/waterwall/tui/themes/cyberpunk.css
+   Spec §13.3 — Waterwall TUI theme.
+   Matrix green for healthy, cyan accents, hot magenta-red for alarms.
+*/
+
+Screen {
+  background: #000000;
+  color: #c0c0c0;
+}
+
+#outer-frame {
+  border: heavy #00ff41;
+}
+
+/* Layout: outer-frame fills the screen; logo + header + banner are fixed-height;
+   the panels-row consumes the remaining vertical slack and splits it evenly
+   across two columns of three panels each. */
+#outer-frame {
+  height: 100%;
+}
+.logo-ascii {
+  color: #00ffff;
+  height: 7;     /* 6 ASCII rows + 1 row breathing space */
+}
+#header-strip {
+  height: 1;
+}
+#offline-banner {
+  height: 1;     /* default empty; .armed grows to height: 3 below */
+}
+#panels-row {
+  height: 1fr;   /* claim all remaining vertical space below the header */
+}
+.panels-col {
+  width: 1fr;    /* each column gets half the horizontal space */
+  height: 100%;  /* fill the panels-row vertically so panel 1fr can split */
+}
+.panel {
+  border: round #00aaaa;
+  padding: 0 1;
+  height: 1fr;   /* each panel claims 1/3 of its column */
+}
+
+.panel-title {
+  color: #00ffff;
+  text-style: bold;
+}
+
+.label  { color: #888888; }
+.value  { color: #ffffff; }
+
+.status-good { color: #00ff41; text-style: bold; }
+.status-warn { color: #ffaa00; text-style: bold; }
+.status-fail { color: #ff003c; text-style: bold blink; }
+
+.alarm  { color: #ff003c; text-style: bold blink; }
+.accent { color: #ff00ff; }
+
+.tagline    { color: #888888; text-style: italic; width: 1fr; }
+
+/* Host identification chip: hot magenta (#ff00ff) intentionally — unique in
+   the palette, not assigned to any status semantic, maximally legible against
+   the matrix-green frame. Stays lit even when the proxy goes OFFLINE so the
+   operator can still tell which box's TUI they're looking at. */
+.hostname-chip {
+  color: #ff00ff;
+  text-style: bold;
+  width: auto;
+  padding: 0 2;
+}
+
+#status-indicator {
+  width: 1fr;
+  text-align: right;
+}
+
+.activity-out  { color: #ff00ff; }
+.activity-in   { color: #00ff41; }
+.activity-warn { color: #ffaa00; }
+.activity-err  { color: #ff003c; }
+
+#offline-banner.armed {
+  background: #ff003c;
+  color: #ffffff;
+  text-style: bold blink;
+  padding: 0 2;
+  width: 100%;
+  text-align: center;
+  height: 3;
+}

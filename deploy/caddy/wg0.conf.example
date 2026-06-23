@@ -1,0 +1,94 @@
+# deploy/caddy/wg0.conf.example
+#
+# Wireguard interface config for the waterwall host.
+#
+# URL:        https://waterwall.example.com/waterwall/  (Caddy serves on the
+#                                                wg interface IP, see
+#                                                Caddyfile)
+# Path:       /waterwall/*  (the admin's mount_prefix scopes everything
+#                            under this path)
+#
+# Copy to /etc/wireguard/wg0.conf (chmod 600), generate keys with
+#   wg genkey | tee /etc/wireguard/server.key | wg pubkey > /etc/wireguard/server.pub
+# and bring the interface up with
+#   systemctl enable --now wg-quick@wg0
+#
+# Architecture: this host is the VPN server. Each peer gets one
+# /32 inside 10.0.0.0/24 and reaches the waterwall status page at
+# https://waterwall.example.com/waterwall/ (Caddy listens on the wg IP —
+# 10.0.0.1 in this example — and the peer's /etc/hosts maps
+# waterwall.example.com to that IP).
+#
+# IMPORTANT: this is a single-operator homelab tool, not a public
+# service. Keep AllowedIPs narrow and the private key 0600 root-only.
+
+[Interface]
+# Waterwall host's wg address. Caddy's :443 block in Caddyfile must
+# match this (`bind 10.0.0.1`).
+Address = 10.0.0.1/24
+
+# The waterwall host's port for incoming wg handshakes. Choose any
+# high port; 51820 is the Wireguard convention.
+ListenPort = 51820
+
+# Private key for this host. Mode 0600, root-owned.
+#   wg genkey | tee /etc/wireguard/wg0.key | wg pubkey > /etc/wireguard/wg0.pub
+PrivateKey = REPLACE_WITH_SERVER_PRIVATE_KEY
+
+# Optional: route only the wg subnet out of this interface. If you
+# also want the wg peer to reach the LAN or the public internet
+# through this host, add a PostUp rule to enable forwarding + NAT.
+# PostUp = sysctl -w net.ipv4.ip_forward=1
+# PostDown = sysctl -w net.ipv4.ip_forward=0
+
+# ---------------------------------------------------------------- peers
+# One [Peer] block per device. Generate each peer's keypair on the
+# device itself (`wg genkey | tee peer.key | wg pubkey > peer.pub`)
+# and paste the PUBLIC key here. Share the peer's private key + the
+# server's PUBLIC key + this host's endpoint address with the device.
+
+[Peer]
+# Example: operator's phone
+PublicKey = REPLACE_WITH_PEER1_PUBLIC_KEY
+# Each peer gets its own /32 inside 10.0.0.0/24. Caddy listens on
+# 10.0.0.1 (the server). The peer routes 10.0.0.0/24 over the tunnel.
+AllowedIPs = 10.0.0.2/32
+# Optional friendly name (most wg-tools render this in `wg show`).
+# Name = operator-phone
+
+[Peer]
+# Example: operator's laptop
+PublicKey = REPLACE_WITH_PEER2_PUBLIC_KEY
+AllowedIPs = 10.0.0.3/32
+# Name = operator-laptop
+
+# ---------------------------------------------------------------- keys flow
+# For each peer, also generate a matching client config like:
+#
+#   [Interface]
+#   Address = 10.0.0.2/32
+#   PrivateKey = <peer private key>
+#   DNS = 1.1.1.1
+#
+#   [Peer]
+#   PublicKey = <server public key>
+#   Endpoint = <server public IP or hostname>:51820
+#   AllowedIPs = 10.0.0.0/24
+#   PersistentKeepalive = 25
+#
+# Import the .conf into the Wireguard app on the peer device.
+#
+# The peer also needs DNS for waterwall.example.com. Two options:
+#
+#   (a) /etc/hosts (or the wireguard app's "DNS" field on iOS/Android):
+#       10.0.0.1   waterwall.example.com
+#
+#   (b) Tailscale's MagicDNS-style split DNS: the operator runs a DNS
+#       server inside the tunnel that resolves waterwall.example.com to
+#       10.0.0.1 for wg peers. Overkill for most setups; (a) is fine.
+#
+# The peer opens https://waterwall.example.com/waterwall/ and the page is
+# served by Caddy. The browser will warn about the self-signed cert
+# (Caddy's internal CA) unless the operator exports the CA and
+# installs it on the device. The CA lives at
+# /var/lib/caddy/pki/authorities/local/root.crt on the waterwall host.
