@@ -1,3 +1,4 @@
+# Builds site/ and deploys to GitHub Pages (Actions source).
 name: Deploy KB to GitHub Pages
 
 on:
