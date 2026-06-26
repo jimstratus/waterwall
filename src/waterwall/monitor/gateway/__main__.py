@@ -35,6 +35,10 @@ def main_cli() -> int:
     threshold = g.get("interval", 45) * g.get("miss_factor", 3)
 
     def _sweeper() -> None:
+        try:
+            sweep_stale(app, time.time(), threshold)
+        except Exception as exc:
+            _log.warning("initial stale sweep error: %s", exc.__class__.__name__)
         while True:
             time.sleep(threshold)
             try:
