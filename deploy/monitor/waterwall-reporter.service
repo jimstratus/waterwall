@@ -1,0 +1,25 @@
+[Unit]
+Description=Waterwall canary reporter (pushes canary + health to the monitor gateway)
+After=network-online.target waterwall-proxy.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=waterwall
+Group=waterwall
+Environment=WATERWALL_CONFIG=/etc/waterwall/config.yaml
+ExecStart=/opt/waterwall/.venv/bin/waterwall report
+Restart=on-failure
+RestartSec=10
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+ReadOnlyPaths=/etc/waterwall /opt/waterwall
+MemoryMax=128M
+CPUQuota=10%
+
+[Install]
+WantedBy=multi-user.target

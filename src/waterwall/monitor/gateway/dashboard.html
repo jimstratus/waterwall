@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waterwall Fleet Monitor</title>
+  <style>
+    :root {
+      --bg:#000; --panel:#050505; --green:#00ff41; --cyan:#00ffff; --cyan2:#00aaaa;
+      --magenta:#ff00ff; --amber:#ffaa00; --red:#ff003c; --fg:#c0c0c0; --label:#888; --rule:#1a1a1a;
+      --mono:"JetBrains Mono","Fira Code",ui-monospace,Menlo,Consolas,monospace;
+    }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--mono);
+      font-size:14px;font-variant-numeric:tabular-nums}
+    header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--cyan2);
+      background:linear-gradient(180deg,#020202,var(--panel))}
+    h1{color:var(--cyan);font-size:18px;margin:0;text-shadow:0 0 8px rgba(0,255,255,.4);letter-spacing:1px}
+    .tag{color:var(--label);font-size:12px;font-style:italic}
+    .spacer{flex:1} .updated{color:var(--label);font-size:12px}
+    table{border-collapse:collapse;width:100%;max-width:1100px;margin:18px auto}
+    th,td{border:1px solid var(--rule);padding:9px 12px;text-align:left}
+    thead th{background:var(--panel);color:var(--cyan)}
+    .pill{padding:2px 9px;border-radius:4px;font-weight:700;font-size:12px}
+    .ok{color:var(--green);border:1px solid var(--green)}
+    .warn{color:var(--amber);border:1px solid var(--amber)}
+    .bad{color:var(--red);border:1px solid var(--red);text-shadow:0 0 6px rgba(255,0,60,.5)}
+    .host{color:var(--magenta);font-weight:700}
+    .stale{color:var(--red)}
+    .legend{max-width:1100px;margin:0 auto 30px;color:var(--label);font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WATERWALL · FLEET MONITOR</h1>
+    <span class="tag">canary = is the agent's traffic actually being tokenized?</span>
+    <span class="spacer"></span>
+    <span class="updated" id="updated">…</span>
+  </header>
+  <table>
+    <thead><tr><th>host</th><th>canary</th><th>health</th><th>version</th><th>last seen</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="legend">
+    canary <b>PASS</b> = secrets tokenized in-path · <b>EXPOSED</b> = secrets bypassing Waterwall (act now) ·
+    stale &gt; 3× interval = dead man's switch (host/agent/proxy down).
+  </div>
+  <script>
+    const STALE = 135; // seconds (3 × 45s default) — visual only
+    // Bearer token for /api/fleet: from the URL FRAGMENT (#token=…) or localStorage.
+    // A fragment is never sent to the server, so the token can't land in the
+    // gateway's access logs (unlike a ?query= string).
+    const frag = new URLSearchParams(location.hash.slice(1)).get("token");
+    if (frag) { localStorage.setItem("ww-monitor-token", frag);
+                history.replaceState(null, "", location.pathname); }
+    const TOKEN = localStorage.getItem("ww-monitor-token") || "";
+    // Escape every value before it touches innerHTML (fleet fields are external input).
+    function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,
+      c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+    // canary/health are known enums -> map to a CSS class (never injected as text).
+    function canaryKind(v){ return v==="pass" ? "ok" : (v==="error" ? "warn" : "bad"); }
+    function healthKind(v){ return v==="ok" ? "ok" : (v==="degraded" ? "warn" : "bad"); }
+    function pill(v, kind){ return `<span class="pill ${kind}">${esc(String(v).toUpperCase())}</span>`; }
+    async function tick(){
+      try{
+        const r = await fetch("api/fleet", { headers: { "Authorization": "Bearer " + TOKEN } });
+        if (r.status === 401){ document.getElementById("updated").textContent =
+          "unauthorized — open with #token=<your-token> once"; return; }
+        const {fleet} = await r.json();
+        const now = Date.now()/1000;
+        document.getElementById("rows").innerHTML = fleet.map(h=>{
+          const age = Math.max(0, Math.round(now - h.ts));
+          const stale = age > STALE;
+          return `<tr>
+            <td class="host">${esc(h.host)}</td>
+            <td>${pill(h.canary, canaryKind(h.canary))}</td>
+            <td>${pill(h.health, healthKind(h.health))}</td>
+            <td>${esc(h.version||"")}</td>
+            <td class="${stale?'stale':''}">${age}s ago${stale?' ⛔':''}</td>
+          </tr>`;
+        }).join("") || `<tr><td colspan="5" style="color:var(--label)">no reporters yet</td></tr>`;
+        document.getElementById("updated").textContent = "updated " + new Date().toLocaleTimeString();
+      }catch(e){ document.getElementById("updated").textContent = "gateway unreachable"; }
+    }
+    tick(); setInterval(tick, 5000);
+  </script>
+</body>
+</html>

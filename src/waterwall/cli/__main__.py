@@ -29,6 +29,8 @@ def main() -> int:
     sub.add_parser("dashboard")
     sub.add_parser("regen-ca")
     sub.add_parser("rotate-chain")
+    sub.add_parser("report")
+    sub.add_parser("monitor-gateway")
 
     # Each subcommand parses its own args via re-parse on remainder
     args, remainder = parser.parse_known_args()
@@ -52,6 +54,10 @@ def main() -> int:
         from waterwall.cli.regen_ca import main_cli; return main_cli()
     if args.cmd == "rotate-chain":
         from waterwall.cli.rotate_chain import main_cli; return main_cli()
+    if args.cmd == "report":
+        from waterwall.monitor.reporter import main_cli; return main_cli()
+    if args.cmd == "monitor-gateway":
+        from waterwall.monitor.gateway.__main__ import main_cli; return main_cli()
     return 2
 
 

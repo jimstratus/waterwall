@@ -1,0 +1,29 @@
+[Unit]
+Description=Waterwall fleet monitor gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=waterwall
+Group=waterwall
+Environment=WATERWALL_CONFIG=/etc/waterwall/config.yaml
+ExecStart=/opt/waterwall/.venv/bin/waterwall monitor-gateway
+Restart=on-failure
+RestartSec=5
+
+# Hardening (mirror waterwall-proxy.service)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectProc=invisible
+PrivateTmp=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+ReadOnlyPaths=/etc/waterwall /opt/waterwall
+ReadWritePaths=/var/log/waterwall
+MemoryMax=256M
+CPUQuota=25%
+
+[Install]
+WantedBy=multi-user.target

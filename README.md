@@ -290,6 +290,7 @@ sudo waterwall verify-evidence /tmp/evidence.tar.gz --pubkey /etc/waterwall/sign
 
 - **Deployment guide:** `docs/deploy.md`
 - **Operational runbook:** `docs/runbook.md`
+- **Fleet monitoring (canary + gateway):** `docs/monitor.md`
 - **Threat model:** `docs/threat-model.md`
 - **v1 design contract:** `docs/superpowers/specs/2026-05-05-waterwall-design.md`
 - **v2 multi-agent design:** `docs/superpowers/specs/2026-05-09-waterwall-v2-multi-agent-design.md`

@@ -1,0 +1,27 @@
+[Unit]
+Description=Waterwall canary echo upstream (provider stand-in for the in-path redaction canary)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=waterwall
+Group=waterwall
+# Serves build_echo_app over TLS as the canary host. CERT/KEY must be a leaf for
+# the canary host (e.g. canary.waterwall.local) signed by the waterwall CA.
+Environment=WATERWALL_CANARY_SECRET=AKIAIOSFODNN7EXAMPLE
+ExecStart=/opt/waterwall/deploy/monitor/run-echo.sh /etc/waterwall/canary.pem /etc/waterwall/canary.key 9443
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+ReadOnlyPaths=/etc/waterwall /opt/waterwall
+MemoryMax=128M
+CPUQuota=10%
+
+[Install]
+WantedBy=multi-user.target
