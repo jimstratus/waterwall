@@ -21,8 +21,24 @@ def open_store(path: str) -> sqlite3.Connection:
     conn.execute(
         "CREATE TABLE IF NOT EXISTS reports("
         "host TEXT PRIMARY KEY, canary TEXT, health TEXT, version TEXT, ts REAL)")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS stale_alerted(host TEXT PRIMARY KEY)")
     conn.commit()
     return conn
+
+
+def get_stale_alerted(conn: sqlite3.Connection) -> set[str]:
+    """Return the set of hosts currently in the alerted-stale state (persisted)."""
+    with _LOCK:
+        return {row[0] for row in conn.execute("SELECT host FROM stale_alerted")}
+
+
+def set_stale_alerted(conn: sqlite3.Connection, hosts: set[str]) -> None:
+    """Replace the entire persisted stale-alerted set atomically."""
+    with _LOCK:
+        conn.execute("DELETE FROM stale_alerted")
+        conn.executemany("INSERT INTO stale_alerted(host) VALUES(?)", ((h,) for h in hosts))
+        conn.commit()
 
 
 def get_state(conn: sqlite3.Connection, host: str) -> dict | None:

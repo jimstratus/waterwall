@@ -10,7 +10,9 @@ from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
 
 from waterwall.monitor.gateway.notify import post_discord
-from waterwall.monitor.gateway.store import get_fleet, open_store, record_report
+from waterwall.monitor.gateway.store import (
+    get_fleet, get_stale_alerted, open_store, record_report, set_stale_alerted,
+)
 from waterwall.monitor.gateway.transitions import Event, detect_stale, detect_transitions
 
 _DASHBOARD = Path(__file__).parent / "dashboard.html"
@@ -56,7 +58,7 @@ def build_gateway_app(*, db_path: str, token: str, discord_webhook: str = "",
     app.state.conn = conn
     app.state.notifier = notifier
     app.state.webhook = discord_webhook
-    app.state.stale_hosts = set()   # hosts currently in the alerted-stale state
+    app.state.stale_hosts = get_stale_alerted(conn)  # reload persisted state on startup
     return app
 
 
@@ -75,6 +77,7 @@ def sweep_stale(app: Starlette, now: float, threshold: float, *, webhook=None,
     for h in sorted(prev - current):
         events.append(Event(h, "recovery", f"✅ {h} heartbeat resumed"))
     app.state.stale_hosts = current
+    set_stale_alerted(app.state.conn, current)
     for ev in events:
         notifier(webhook, ev)
     return events
