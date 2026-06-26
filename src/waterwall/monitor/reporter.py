@@ -77,11 +77,19 @@ def main_cli() -> int:
     if not m.get("enabled"):
         _log.info("monitor.enabled is false — reporter not started")
         return 0
+    gateway_url = m.get("gateway_url")
+    token = m.get("token")
+    if not gateway_url:
+        _log.error("monitor.gateway_url is required when monitor.enabled is true")
+    if not token:
+        _log.error("monitor.token is required when monitor.enabled is true")
+    if not gateway_url or not token:
+        return 1
     cfg = {
         "host": m.get("host", socket.gethostname()),
         "version": m.get("version", "v2"),
-        "gateway_url": m["gateway_url"],
-        "token": m["token"],
+        "gateway_url": gateway_url,
+        "token": token,
         "canary_url": m.get("canary_url", "https://canary.waterwall.local/canary"),
         "healthz_url": m.get("healthz_url", "http://127.0.0.1:8889/healthz"),
         "synthetic": m.get("synthetic", "AKIAIOSFODNN7EXAMPLE"),
