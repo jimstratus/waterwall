@@ -19,7 +19,7 @@ _DASHBOARD = Path(__file__).parent / "dashboard.html"
 
 
 def build_gateway_app(*, db_path: str, token: str, discord_webhook: str = "",
-                      notifier=post_discord) -> Starlette:
+                      notifier=post_discord, stale_seconds: float = 135.0) -> Starlette:
     conn = open_store(db_path)
 
     def _authed(request: Request) -> bool:
@@ -45,7 +45,7 @@ def build_gateway_app(*, db_path: str, token: str, discord_webhook: str = "",
         # additionally meant to sit behind CF Access for the human layer.
         if not _authed(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return JSONResponse({"fleet": get_fleet(conn)})
+        return JSONResponse({"fleet": get_fleet(conn), "stale_seconds": stale_seconds})
 
     async def dashboard(request: Request) -> FileResponse:
         return FileResponse(_DASHBOARD)

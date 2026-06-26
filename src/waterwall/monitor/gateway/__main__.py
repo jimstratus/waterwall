@@ -27,12 +27,12 @@ def main_cli() -> int:
     if not token:
         _log.error("gateway.token is required in config.yaml")
         return 1
+    threshold = g.get("interval", 45) * g.get("miss_factor", 3)
     app = build_gateway_app(
         db_path=g.get("db", "/var/log/waterwall/monitor.db"),
         token=token,
-        discord_webhook=g.get("discord_webhook", ""))
-
-    threshold = g.get("interval", 45) * g.get("miss_factor", 3)
+        discord_webhook=g.get("discord_webhook", ""),
+        stale_seconds=threshold)
 
     def _sweeper() -> None:
         try:

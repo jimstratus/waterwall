@@ -45,7 +45,7 @@
     stale &gt; 3× interval = dead man's switch (host/agent/proxy down).
   </div>
   <script>
-    const STALE = 135; // seconds (3 × 45s default) — visual only
+    let STALE = 135; // seconds — updated from /api/fleet stale_seconds on each tick
     // Bearer token for /api/fleet: from the URL FRAGMENT (#token=…) or localStorage.
     // A fragment is never sent to the server, so the token can't land in the
     // gateway's access logs (unlike a ?query= string).
@@ -65,7 +65,9 @@
         const r = await fetch("api/fleet", { headers: { "Authorization": "Bearer " + TOKEN } });
         if (r.status === 401){ document.getElementById("updated").textContent =
           "unauthorized — open with #token=<your-token> once"; return; }
-        const {fleet} = await r.json();
+        const data = await r.json();
+        const {fleet} = data;
+        if (data.stale_seconds) STALE = data.stale_seconds;
         const now = Date.now()/1000;
         document.getElementById("rows").innerHTML = fleet.map(h=>{
           const age = Math.max(0, Math.round(now - h.ts));
