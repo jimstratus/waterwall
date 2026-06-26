@@ -28,8 +28,11 @@ def build_gateway_app(*, db_path: str, token: str, discord_webhook: str = "",
     async def report(request: Request) -> JSONResponse:
         if not _authed(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        rep = await request.json()
-        prev = record_report(conn, rep)
+        try:
+            rep = await request.json()
+            prev = record_report(conn, rep)
+        except (ValueError, KeyError):
+            return JSONResponse({"error": "bad report"}, status_code=400)
         for event in detect_transitions(prev, rep):
             notifier(discord_webhook, event)
         return JSONResponse({"ok": True})
