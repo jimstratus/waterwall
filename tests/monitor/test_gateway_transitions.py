@@ -6,7 +6,7 @@ from waterwall.monitor.gateway.transitions import (
 
 
 def _r(canary="pass", health="ok", ts=1.0):
-    return {"host": "vector", "canary": canary, "health": health, "version": "v", "ts": ts}
+    return {"host": "edge-host", "canary": canary, "health": health, "version": "v", "ts": ts}
 
 
 def test_canary_pass_to_exposed_emits_alert():
@@ -38,8 +38,8 @@ def test_health_down_then_up():
 
 def test_detect_stale_returns_stale_hostnames():
     # detect_stale is now a pure host-name list; the edge lives in sweep_stale.
-    fleet = [{"host": "vector", "canary": "pass", "health": "ok", "version": "v", "ts": 100.0}]
-    assert detect_stale(fleet, now=200.0, threshold=90.0) == ["vector"]
+    fleet = [{"host": "edge-host", "canary": "pass", "health": "ok", "version": "v", "ts": 100.0}]
+    assert detect_stale(fleet, now=200.0, threshold=90.0) == ["edge-host"]
     assert detect_stale(fleet, now=150.0, threshold=90.0) == []
 
 

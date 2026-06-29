@@ -107,7 +107,7 @@ def test_no_internal_doc_or_host_leakage():
     content = SITE / "content"
     banned = [
         "lab-notes", "HANDOFF", "RESEARCH.md", "superpowers",
-        "test-host", "prod-host", "vector.eotir", "bastion.eotir",
+        "test-host", "prod-host", "edge-host.example.com", "bastion.example.com",
         "100.96.0", "10.20.31", "914f6a8b", "5.252.55",
     ]
     for md in content.glob("*.md"):

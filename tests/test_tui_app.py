@@ -77,7 +77,7 @@ async def test_app_displays_hostname_chip():
         await pilot.pause()
         chip = app.query_one("#hostname", Static)
         # FQDN is collapsed to short name and uppercased for prominence.
-        assert "ANSIBLE" in str(chip.renderable)
+        assert "PROD-HOST" in str(chip.renderable)
         assert "lan.example.com" not in str(chip.renderable)
         assert chip.has_class("hostname-chip")
 
@@ -96,7 +96,7 @@ async def test_hostname_stays_lit_when_proxy_offline():
         # to status-fail when /admin/state is unreachable.
         assert not chip.has_class("status-fail")
         assert chip.has_class("hostname-chip")
-        assert "N8N" in str(chip.renderable)
+        assert "TEST-HOST" in str(chip.renderable)
         # Pin the full class set: protects against a future refactor that
         # paints the whole header strip (e.g. `query("#header-strip Static")
         # .add_class("status-fail")`) — the negative assertion above wouldn't

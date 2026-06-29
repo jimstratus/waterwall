@@ -3,7 +3,7 @@ from waterwall.monitor.gateway.transitions import Event
 
 
 def test_format_event_content():
-    assert format_event(Event("vector", "alert", "boom"))["content"] == "boom"
+    assert format_event(Event("edge-host", "alert", "boom"))["content"] == "boom"
 
 
 def test_post_discord_calls_post():

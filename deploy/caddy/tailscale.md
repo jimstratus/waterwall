@@ -54,7 +54,7 @@ JSON live at `/waterwall/` and `/waterwall/admin/state` respectively.
 
    ```bash
    # Public via Tailscale Funnel (anyone on the internet can reach
-   # it at https://vector-vps.shire-alioth.ts.net/waterwall/ — Tailscale's
+   # it at https://<host>.<tailnet>.ts.net/waterwall/ — Tailscale's
    # edge handles TLS, your tailnet auth is the gate). Treat as a public
    # surface; combine with Tailscale ACLs that require your devices
    # to be tagged/approved.

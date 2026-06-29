@@ -39,6 +39,11 @@ invoke `waterwall-hermes <real-hermes-args>` instead of `hermes <args>`.
 | down | n/a | 1 | no |
 | running | armed | 1 | no |
 
+When `monitor.gate.enabled: true`, the hook also fires a fresh canary at launch
+(after the proxy/kill-switch checks above): an `EXPOSED` verdict exits 1 and the
+agent is not invoked. An unverifiable canary follows `monitor.gate.on_error`
+(`warn` = start with a warning, `block` = exit 1).
+
 ## Why a shell wrapper, not a Python module?
 
 The wrapper must `exec` the target binary so the agent process replaces the

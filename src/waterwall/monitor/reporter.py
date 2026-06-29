@@ -30,9 +30,10 @@ def _default_post(url: str, json: dict, headers: dict) -> bool:
         return False
 
 
-def report_once(cfg: dict, *, post=_default_post, clock=time.time) -> dict | None:
+def report_once(cfg: dict, *, post=_default_post, clock=time.time) -> tuple[dict, bool]:
     """One cycle: canary (via the agent's proxy) + health, push to the gateway.
-    Returns the report on success, None if posting failed (logged, non-fatal)."""
+    Returns (report, gateway_ok); gateway_ok is False when the POST failed (logged,
+    non-fatal) — the report is still returned so a backup notifier can see the verdict."""
     proxy, ca_path = cfg.get("proxy"), cfg.get("ca_path")
     canary = None
     # Re-read client.env every cycle so post-startup proxy drift is caught — the
@@ -52,13 +53,31 @@ def report_once(cfg: dict, *, post=_default_post, clock=time.time) -> dict | Non
     health = read_health(cfg["healthz_url"])
     report = build_report(cfg["host"], canary, health, cfg["version"], clock())
     headers = {"Authorization": f"Bearer {cfg['token']}"}
-    return report if post(cfg["gateway_url"], report, headers) else None
+    gateway_ok = bool(post(cfg["gateway_url"], report, headers))
+    return report, gateway_ok
+
+
+def run_cycle(cfg: dict, state, logger):
+    """One reporter cycle: report + optional backup notify. Returns the updated
+    BackupState (or None when the backup is disabled)."""
+    report, gateway_ok = report_once(cfg)
+    bcfg = cfg.get("backup") or {}
+    if not bcfg.get("enabled"):
+        return state
+    from waterwall.monitor import backup_notify as bn
+    if state is None:
+        state = bn.BackupState()
+    return bn.cycle(state, report, gateway_ok, bcfg, cfg["host"], logger)
 
 
 def run_loop(cfg: dict) -> None:
+    from waterwall.monitor import backup_notify as bn
+    bcfg = cfg.get("backup") or {}
+    logger = bn.make_logger(bcfg.get("log_path")) if bcfg.get("enabled") else None
+    state = None
     while True:
         try:
-            report_once(cfg)
+            state = run_cycle(cfg, state, logger)
         except Exception as exc:  # never let one bad cycle kill the heartbeat
             _log.warning("report cycle error: %s", exc.__class__.__name__)
         time.sleep(cfg.get("interval", 45))
@@ -96,6 +115,7 @@ def main_cli() -> int:
         # client.env is re-read every cycle (report_once) so proxy drift is caught.
         "client_env": m.get("client_env", "/etc/waterwall/client.env"),
         "interval": m.get("interval", 45),
+        "backup": m.get("backup", {}),
     }
     run_loop(cfg)
     return 0

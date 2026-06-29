@@ -15,7 +15,7 @@ each host:  agent ─┐
         │   echo verdict:  PASS = tokenized   |   EXPOSED = raw secret leaked
         │   + /healthz:    ok | degraded | down
         ▼
-   POST (bearer) ──►  gateway (vector)  ──►  Discord on transition only
+   POST (bearer) ──►  gateway (edge-host)  ──►  Discord on transition only
                           │                  (EXPOSED / RECOVERED / dead-man's-switch)
                           └──►  /  fleet dashboard
 ```
@@ -44,7 +44,7 @@ monitor:
 sources it — so the canary travels the same path as the agent, and a broken agent env makes the
 canary report `EXPOSED`.
 
-## Gateway config (vector only)
+## Gateway config (edge-host only)
 
 ```yaml
 gateway:
@@ -75,7 +75,7 @@ CF Access — the bearer protects the data API even behind Access.
 - `waterwall-canary-echo.service` — the loopback TLS echo (needs a `canary.waterwall.local`
   leaf cert signed by the waterwall CA; add the canary host to `permitted_hosts.yaml` + regen CA).
 - `waterwall-reporter.service` — runs `waterwall report` (every host you want monitored).
-- `waterwall-monitor-gateway.service` — runs `waterwall monitor-gateway` (vector only).
+- `waterwall-monitor-gateway.service` — runs `waterwall monitor-gateway` (edge-host only).
 
 ## Reading the dashboard
 
@@ -87,6 +87,59 @@ CF Access — the bearer protects the data API even behind Access.
 
 ## Status
 
-Phase 1 ships the reporter + gateway + canary echo + Discord alerts + dashboard. Deferred:
-backup local notifier (Phase 2), fleet rollout to additional hosts (Phase 3), session-launch
-hard-gate on `EXPOSED` (Phase 4).
+Phase 1 ships the reporter + gateway + canary echo + Discord alerts + dashboard. Phase 2 adds the
+per-host backup local notifier and Phase 4 the session-launch hard-gate on `EXPOSED` (both below;
+opt-in, code complete). Deferred: fleet rollout to additional hosts (Phase 3).
+
+## Launch hard-gate (Phase 4)
+
+The pre-launch hook (`waterwall pre-launch-hook`, enforced by the
+`waterwall-launch` wrapper) can refuse to start an agent when a fresh canary,
+fired at launch through the agent's own proxy/CA, returns `EXPOSED`. Opt in per
+host:
+
+```yaml
+monitor:
+  gate:
+    enabled: true        # default false
+    on_error: warn       # warn (default, fail-open) | block (fail-closed)
+  canary_url: https://canary.waterwall.local/canary
+  synthetic: AKIAIOSFODNN7EXAMPLE
+  client_env: /etc/waterwall/client.env
+```
+
+- `pass` → agent starts.
+- `exposed` → agent blocked (exit 1).
+- `error` (echo unreachable / unverifiable) → `warn` starts with a loud
+  warning; `block` refuses to start.
+
+Designated first host: **canary-host**, internal homelab. Requires the local
+canary echo + canary host trusted on that box (step-3 wiring). `edge-host` remains
+the public routing edge. See
+`docs/superpowers/specs/2026-06-29-waterwall-monitor-launch-gate-design.md`.
+
+## Backup local notifier (Phase 2)
+
+A per-host, gateway-independent alert path so a single host can still warn you when
+the central gateway/Discord path is down. The reporter edge-detects locally and
+fans each alert to an independent Discord webhook plus a local log + the systemd
+journal. Opt in per host:
+
+```yaml
+monitor:
+  backup:
+    enabled: true        # default false
+    webhook: "https://discord.com/api/webhooks/…"   # SEPARATE from the gateway's
+    log_path: "/var/log/waterwall/backup-alerts.log"
+    gateway_miss_threshold: 2    # consecutive failed gateway POSTs before alerting
+```
+
+Fires (edge-triggered) on:
+- local canary **EXPOSED** — immediately (no debounce; redundant with the gateway's
+  alert, so you're never blind on the critical signal);
+- **gateway unreachable** for `gateway_miss_threshold` consecutive cycles (the central
+  path is blind), with a recovery when it returns.
+
+The journal is captured automatically (the reporter runs under systemd); `journalctl
+-u waterwall-reporter` shows the alerts even with no network. See
+`docs/superpowers/specs/2026-06-29-waterwall-monitor-backup-notifier-design.md`.
