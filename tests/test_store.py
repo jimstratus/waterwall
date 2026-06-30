@@ -3,6 +3,7 @@
 
 import time
 import threading
+import pytest
 from waterwall.proxy.store import PlaceholderStore
 
 
@@ -88,3 +89,31 @@ def test_store_ttl_evicts_lru_touched_old_entries():
     time.sleep(0.04)          # now ~0.08s; A's ts(~0) age > ttl(0.05)
     assert s.get("a") is None # must be evicted despite being LRU-end
     assert s.get("b") is None # also expired
+
+
+def test_store_rejects_non_positive_capacity():
+    """Guard (store.py capacity<=0 ValueError) had no coverage (BACKLOG
+    phase-2-7). A zero/negative capacity would otherwise divide-by-zero or
+    never evict; reject eagerly at construction."""
+    with pytest.raises(ValueError):
+        PlaceholderStore(capacity=0)
+    with pytest.raises(ValueError):
+        PlaceholderStore(capacity=-1)
+
+
+def test_store_put_existing_key_refreshes_lru_and_value():
+    """Redact of the same secret twice (re-key) must refresh the existing
+    entry's LRU position AND overwrite its value — the put() path that the
+    dead-move_to_end cleanup touched. Pins the post-cleanup contract: OrderedDict
+    assignment does NOT move an existing key, so explicit move_to_end on the
+    existing branch is required; the redundant unconditional move is gone."""
+    s = PlaceholderStore(capacity=2, ttl_seconds=60)
+    s.put("a", "A1")
+    s.put("b", "B")
+    # re-put "a" (existing) with a new value; it must become most-recent
+    s.put("a", "A2")
+    assert s.get("a") == "A2"      # value overwritten
+    s.put("c", "C")                # capacity 2 → evict LRU ("b", not "a")
+    assert s.get("b") is None       # "b" is the LRU now
+    assert s.get("a") == "A2"       # "a" survived (was refreshed)
+    assert s.get("c") == "C"

@@ -128,20 +128,33 @@ def redact_in_place(
             # spans are scan_string's contract (issue #21) — overlapping
             # matches are merged at the producer, so every consumer is safe.
             out = escaped
+            # Collect THIS leaf's events (appended right-to-left) into a local
+            # list, then reverse it back to source order before merging into the
+            # request-wide events list. A whole-request `events.reverse()` would
+            # ALSO reverse across leaves (messages[1] before messages[0]); only
+            # the per-leaf span order needs undoing. (argus 2026-06-29-multisec.)
+            leaf_events: list[RedactionEvent] = []
             for m in sorted(matches, key=lambda x: x.start, reverse=True):
                 placeholder = tokenizer.tokenize(m.text, m.type)
                 hmac8 = placeholder.removeprefix(f"<pl:{m.type}:").removesuffix(">")
                 store.put(hmac8, m.text)
-                events.append(RedactionEvent(
+                leaf_events.append(RedactionEvent(
                     path=path, type_label=m.type, hmac8=hmac8,
                 ))
                 out = out[:m.start] + placeholder + out[m.end:]
+            leaf_events.reverse()
+            events.extend(leaf_events)
             return out
         return obj
 
     # `_process` mutates dicts/lists in place via `obj[key] = ...` / `obj[i] = ...`.
     # Caller's body reference is updated transitively; no clear/update dance.
     _process(body, "")
+    # events are in source order: leaves are visited in source order, and each
+    # leaf's right-to-left span order is reversed back (above). Audit redactions,
+    # action receipts, and the TUI types list therefore match body placeholder
+    # order (human-readable forensics). Determinism preserved; the hash chain
+    # recomputes from stored lines, so existing logs still verify.
     return events
 
 

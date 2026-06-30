@@ -26,9 +26,11 @@ class PlaceholderStore:
         with self._lock:
             self._evict_expired(now)
             if hmac8 in self._data:
+                # Refresh LRU position for an existing key (OrderedDict
+                # assignment below updates the value in place WITHOUT moving
+                # it, so an explicit move_to_end is required to refresh).
                 self._data.move_to_end(hmac8)
             self._data[hmac8] = (plaintext, now)
-            self._data.move_to_end(hmac8)
             while len(self._data) > self._capacity:
                 self._data.popitem(last=False)
 
@@ -43,6 +45,12 @@ class PlaceholderStore:
             return entry[0]
 
     def size(self) -> int:
+        """Live (non-expired) entry count.
+
+        Side-effect: evicts expired entries before counting (matches get/put).
+        Callers using size() only to branch on capacity should be aware it can
+        mutate the store (drop TTL-expired keys).
+        """
         with self._lock:
             self._evict_expired(time.monotonic())
             return len(self._data)
